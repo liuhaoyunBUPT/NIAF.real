@@ -1,0 +1,26 @@
+# configs/config_niaf.yaml
+# NIAF模型训练配置 (SIREN)
+
+defaults:
+  - _base
+  - action_stats: pick_pineapple
+  - callbacks: default
+  - datamodule: default
+  - model: niaf
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+ckpt_monitor: train/siren_loss
+
+root_data_dir: /data1/lhy/traindata/pick_pineapple
+lang_text: "Pick up the pineapple toy and put it on the plate"
+action_mode: delta_first
+
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  save_dir: .
+  group: niaf
+  log_model: false
+  project: niaf
+  name: seq${chunk_size}_${now:%Y%m%d_%H%M%S}

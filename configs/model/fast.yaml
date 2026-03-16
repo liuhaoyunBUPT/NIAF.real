@@ -1,0 +1,19 @@
+# configs/model/fast.yaml
+# FAST模型 — FAST Action Tokenizer
+
+defaults:
+  - base
+
+_target_: src.models.fast.FAST
+
+# FAST 特有配置
+max_action_tokens: ${max_action_tokens}
+
+fast_tokenizer:
+  _target_: src.models.tokenizers.fast_tokenizer.FAST_Tokenizer
+  _recursive_: false
+  num_dof: ${act_dim}
+  seq_len: ${chunk_size}
+  fast_tokenizer_path: ${fast_tokenizer_path}
+  fast_vocab_size: ${fast_vocab_size}
+  device: "cuda"

@@ -1,0 +1,41 @@
+# configs/model/base.yaml
+# 模型公共配置 — 所有模型通过 defaults: [base] 继承
+
+_recursive_: false
+
+# VLM配置
+vlm_path: ${vlm_path}
+freeze_florence: False
+freeze_vision_tower: False
+vlm_prompt_style: default
+token_dropout: 0.1
+
+# 模型结构
+action_dim: ${act_dim}
+act_window_size: ${chunk_size}
+rgb_obs_keys: ${rgb_obs_keys}
+action_min: ${action_min}
+action_max: ${action_max}
+
+# 预训练配置
+load_pretrained: False
+pretrained_model_path: null
+
+# 优化器配置
+optimizer_type: adamw
+
+optimizer:
+  _target_: torch.optim.AdamW
+  transformer_weight_decay: 0
+  learning_rate: 1e-5
+  betas: [0.9, 0.95]
+
+# 学习率调度器
+lr_scheduler:
+  lr_scheduler:
+    init_lr: 1e-5
+    init_lr_scale: 0.1
+    final_lr_scale: 0.5
+    total_steps: 50000
+    phase_ratio: "(0.1, 0.1, 0.8)"
+    lr: 1e-5

@@ -1,0 +1,10 @@
+# configs/model/oft.yaml
+# OFT模型 — OpenVLA-OFT regression MLP
+
+defaults:
+  - base
+
+_target_: src.models.oft.OFT
+
+# OFT 特有配置
+oft_mlp_depth: 4

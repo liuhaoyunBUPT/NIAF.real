@@ -1,0 +1,30 @@
+# configs/config_fast.yaml
+# FAST模型训练配置
+
+defaults:
+  - _base
+  - action_stats: pick_pineapple
+  - callbacks: default
+  - datamodule: default
+  - model: fast
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+ckpt_monitor: train/llm_loss
+
+root_data_dir: /data1/lhy/traindata/pick_pineapple
+lang_text: "Pick up the pineapple toy and put it on the plate"
+
+max_action_tokens: 256
+fast_tokenizer_path: "/home/lhy/.cache/huggingface/hub/models--physical-intelligence--fast/snapshots/ec4d7aa71691cac0b8bed6942be45684db2110f4"
+fast_vocab_size: 2048
+vocab_size: ${fast_vocab_size}
+
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  save_dir: .
+  group: fast
+  log_model: false
+  project: niaf
+  name: seq${chunk_size}_${now:%Y%m%d_%H%M%S}

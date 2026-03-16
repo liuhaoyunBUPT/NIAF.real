@@ -1,0 +1,67 @@
+# configs/datamodule/default.yaml
+# 数据模块配置
+
+defaults:
+  - transforms: default_transforms
+
+_target_: src.datasets.data_module.NIAFDataModule
+_recursive_: false
+
+# 数据路径
+root_data_dir: ${root_data_dir}
+
+# 序列长度
+action_seq_len: ${chunk_size}
+
+# 数据加载
+batch_size: ${batch_size}
+num_workers: ${num_workers}
+seed: ${seed}
+
+# 数据划分
+val_split: 0.0
+subsample_rate: 1  # 每隔多少帧采样
+
+# 任务描述
+lang_text: ${lang_text}
+
+# 相机映射: 输出键名 -> HDF5中的路径
+camera_keys:
+  rgb_static: observations/images/cam_high
+  rgb_left_wrist: observations/images/cam_left_wrist
+  rgb_right_wrist: observations/images/cam_right_wrist
+
+# 状态和动作键
+state_key: observations/qpos
+action_key: action  
+
+# 最大episode数量 (null表示加载全部)
+max_episodes: null
+
+# 懒加载模式（节省内存，推荐开启）
+lazy_load: true
+
+# 动作模式: 
+#   - "absolute": 绝对动作，a_t = s_{t+1}
+#   - "relative": 相对动作，a_t = s_{t+1} - s_t
+#   - "delta_first": 相对chunk起始动作，a_t = s_{t+1} - s_0 (chunk起始状态)
+action_mode: ${action_mode}
+
+# 机械臂模式: dual (双臂), left (左臂), right (右臂)
+arm_mode: ${arm_mode}
+
+# 相机视角开关
+use_cam_high: ${use_cam_high}
+use_cam_left_wrist: ${use_cam_left_wrist}
+use_cam_right_wrist: ${use_cam_right_wrist}
+
+# 动作归一化范围 (逐维度)
+# 绝对动作
+action_min_absolute: ${action_min_absolute}
+action_max_absolute: ${action_max_absolute}
+# 相对动作
+action_min_relative: ${action_min_relative}
+action_max_relative: ${action_max_relative}
+# delta_first动作
+action_min_delta_first: ${action_min_delta_first}
+action_max_delta_first: ${action_max_delta_first}

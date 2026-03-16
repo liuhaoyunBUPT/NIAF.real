@@ -1,0 +1,27 @@
+# configs/model/beast.yaml
+# BEAST模型 — MP tokenizer
+
+defaults:
+  - base
+
+_target_: src.models.beast.BEAST
+
+# BEAST 特有配置
+update_w_bound: ${update_w_bound}
+pre_compute_w_bound: ${pre_compute_w_bound}
+pre_compute_w_bound_steps: ${pre_compute_w_bound_steps}
+
+mp_tokenizer:
+  _target_: src.models.tokenizers.bspline_tokenizer.BSpline_Tokenizer
+  _recursive_: false
+  num_dof: ${act_dim}
+  num_basis: ${num_basis}
+  duration: 1.0
+  seq_len: ${seq_len}
+  vocab_size: ${vocab_size}
+  degree_p: ${degree_p}
+  gripper_zero_order: True
+  gripper_dof: 2
+  init_cond_order: 0
+  end_cond_order: 0
+  init_pos: ${init_pos}

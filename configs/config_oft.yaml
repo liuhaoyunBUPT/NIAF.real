@@ -1,0 +1,25 @@
+# configs/config_oft.yaml
+# OFT模型训练配置
+
+defaults:
+  - _base
+  - action_stats: cup
+  - callbacks: default
+  - datamodule: default
+  - model: oft
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+ckpt_monitor: train/llm_loss
+
+root_data_dir: /data1/lhy/traindata/cup
+lang_text: "Pick up the orange cup and stack it on top of the blue cup."
+
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  save_dir: .
+  group: oft
+  log_model: false
+  project: niaf
+  name: seq${chunk_size}_${now:%Y%m%d_%H%M%S}

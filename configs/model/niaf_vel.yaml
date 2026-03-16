@@ -1,0 +1,18 @@
+# configs/model/niaf_vel.yaml
+# NIAF模型 + 速度监督配置
+
+defaults:
+  - niaf
+
+_target_: src.models.niaf_vel.NIAFVel
+
+# 速度监督参数
+fps: ${fps}                           # 采集频率 (Hz)
+act_loss_weight: ${act_loss_weight}   # 位置 loss 权重
+vel_loss_weight: ${vel_loss_weight}   # 速度 loss 权重
+jerk_loss_weight: ${jerk_loss_weight} # jerk 正则化权重
+
+# 动作归一化统计信息 (用于速度缩放)
+delta_first_action_stats:
+  min: ${action_min_delta_first}
+  max: ${action_max_delta_first}

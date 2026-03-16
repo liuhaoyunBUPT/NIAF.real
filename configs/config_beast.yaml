@@ -1,0 +1,36 @@
+# configs/config_beast.yaml
+# BEAST模型训练配置 (MP tokenizer)
+
+defaults:
+  - _base
+  - action_stats: cup
+  - callbacks: default
+  - datamodule: default
+  - model: beast
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+ckpt_monitor: train/llm_loss
+
+root_data_dir: /data1/lhy/traindata/cup
+lang_text: "Pick up the orange cup and stack it on top of the blue cup."
+
+# Beast tokenizer 配置
+num_basis: 10
+seq_len: ${chunk_size}
+vocab_size: 256
+degree_p: 3
+init_pos: False
+pre_compute_w_bound: False
+pre_compute_w_bound_steps: 10000
+update_w_bound: True
+
+
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  save_dir: .
+  group: beast
+  log_model: false
+  project: niaf
+  name: seq${chunk_size}_${now:%Y%m%d_%H%M%S}

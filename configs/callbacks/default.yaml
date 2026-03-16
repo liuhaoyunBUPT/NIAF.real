@@ -1,0 +1,30 @@
+# configs/callbacks/default.yaml
+# 统一训练回调配置
+# 通过顶层配置的 ckpt_monitor 变量控制 checkpoint 监控指标
+
+ema:
+  _target_: src.callbacks.ema.EMA
+  decay: 0.999
+  start_step: 0
+  save_ema_weights_in_callback_state: True
+  evaluate_ema_weights_instead: True
+  power: 0.6666666666666666
+  inv_gamma: 1.0
+  min_value: 0.0
+  max_value: 0.9999
+
+checkpoint:
+  _target_: pytorch_lightning.callbacks.ModelCheckpoint
+  save_top_k: -1
+  verbose: True
+  monitor: ${ckpt_monitor}
+  mode: min
+  dirpath: checkpoints
+  filename: 'epoch={epoch:02d}_loss={${ckpt_monitor}:.4f}'
+  every_n_epochs: 10
+  save_last: False
+  auto_insert_metric_name: False
+
+learning_rate_monitor:
+  _target_: pytorch_lightning.callbacks.LearningRateMonitor
+  logging_interval: step

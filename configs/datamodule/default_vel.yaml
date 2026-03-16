@@ -1,0 +1,9 @@
+# configs/datamodule/default_vel.yaml
+# 数据模块配置 - 带速度监督
+
+defaults:
+  - default  # 继承基础配置
+
+# 速度监督相关配置
+vel_key: observations/qvel  # HDF5中速度数据的键
+return_joint_vel: true       # 返回关节速度用于速度监督

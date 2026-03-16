@@ -1,0 +1,66 @@
+# configs/_base.yaml
+# 顶层配置公共模板 — 各 config_*.yaml 通过 defaults: [_base] 继承
+
+# 基本配置
+seed: 42
+device: 'cuda'
+batch_size: 16
+devices: 4
+num_workers: 4
+max_epochs: 30
+
+act_dim: 14
+chunk_size: 50
+
+# 机械臂模式: dual (双臂), left (左臂), right (右臂)
+arm_mode: left
+
+# 动作模式: absolute, relative, delta_first
+action_mode: delta_first
+
+# 归一化参数 (由 train.py 根据 action_mode 自动解析)
+action_min: null
+action_max: null
+
+# 相机视角开关
+use_cam_high: True
+use_cam_left_wrist: True
+use_cam_right_wrist: False
+
+# 多相机配置：按需选择输入的视角
+rgb_obs_keys:
+  - rgb_static
+  - rgb_left_wrist
+  - rgb_right_wrist
+
+# VLM路径
+vlm_path: /data1/lhy/models/Florence-2/base
+
+# Trainer配置
+trainer:
+  devices: ${devices}
+  precision: bf16-mixed
+  max_epochs: ${max_epochs}
+  accelerator: gpu
+  strategy:
+    _target_: pytorch_lightning.strategies.DDPStrategy
+    gradient_as_bucket_view: False
+    find_unused_parameters: False
+  limit_train_batches: 100
+  limit_val_batches: 10
+
+# Hydra配置
+hydra:
+  run:
+    dir: /data1/lhy/niaf_log/${logger.project}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: /data1/lhy/niaf_log/${logger.project}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.override_dirname}
+  job:
+    chdir: true
+    config:
+      override_dirname:
+        exclude_keys:
+          - root_data_dir
+          - trainer.devices
+          - num_workers

@@ -1,0 +1,19 @@
+# configs/model/niaf.yaml
+# NIAF模型 — Siren 隐式神经表示
+
+defaults:
+  - base
+
+_target_: src.models.niaf.NIAF
+
+action_mode: ${action_mode}
+
+# Siren 配置
+siren:
+  chunk_size: ${chunk_size}
+  n_groups_per_layer: 64
+  siren_activation: sine
+  bias_mod_scale: 0.015
+  fp32: true
+  siren_hidden_dim: 64
+  siren_num_layers: 3
