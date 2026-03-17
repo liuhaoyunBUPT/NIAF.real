@@ -1,28 +1,33 @@
 # train.py
-"""
-统一训练入口
-支持5种模型: beast, niaf, niaf_vel, fast, oft
-通过 Hydra 配置选择模型变体，通过 arm_mode 选择单/双臂
+"""统一训练入口（Hydra）。
 
-用法:
-    # 训练 niaf 模型 (默认)
+必须指定
+--------
+- --config-name: 训练配置名（常用：config_niaf / config_niaf_vel / config_beast / config_fast / config_oft）
+
+常用可覆盖参数
+--------------
+- arm_mode=left|right|dual
+- action_mode=absolute|relative|delta_first
+- root_data_dir=/path/to/data
+- trainer.devices=1 或多卡配置
+- niaf_vel 相关: vel_loss_weight=..., jerk_loss_weight=..., fps=...
+
+示例
+----
+    # NIAF
     python train.py --config-name config_niaf
 
-    # 训练 niaf_vel 模型
+    # NIAFVel（调整速度监督权重）
     python train.py --config-name config_niaf_vel vel_loss_weight=0.2 jerk_loss_weight=0
 
-    # 训练 beast 模型
+    # BEAST / FAST / OFT
     python train.py --config-name config_beast
-
-    # 训练 fast 模型
     python train.py --config-name config_fast
-
-    # 训练 oft 模型
     python train.py --config-name config_oft
 
-    # 覆盖 arm_mode
-    python train.py arm_mode=left
-
+    # 覆盖单臂模式
+    python train.py --config-name config_niaf arm_mode=left
 """
 import logging
 from pathlib import Path

@@ -33,6 +33,7 @@ class NiafVelPolicy(BaseServePolicy):
         kwargs["action_mode"] = "delta_first"
         super().__init__(model, **kwargs)
         self.return_joint_vel = return_joint_vel
+        self.use_native_target_chunk_sampling = True
 
     def _model_inference(
         self, model_obs: Dict[str, Any], goal: Dict[str, Any]
@@ -47,16 +48,29 @@ class NiafVelPolicy(BaseServePolicy):
                 batch["rgb_obs"][cam_key] = model_obs["rgb_obs"][cam_key]
 
         result: Dict[str, np.ndarray] = {}
+        original_chunk_size = getattr(self.model, "chunk_size", None)
+        if self.target_chunk_size is not None and original_chunk_size is not None:
+            self.model.chunk_size = int(self.target_chunk_size)
 
-        if self.return_joint_vel:
-            # Gradient required for analytic velocity (d_action / d_tau)
-            with torch.enable_grad():
-                actions_norm, vel_pred = self.model.predict_actions_and_joint_vel(batch)
-            actions = self.model.denormalize_actions(actions_norm)
-            result["velocities"] = vel_pred.detach().cpu().numpy().squeeze(0)
-        else:
-            with torch.no_grad():
-                actions = self.model.forward(model_obs, goal)  # already denormalized
+        try:
+            if self.return_joint_vel:
+                # Gradient required for analytic velocity (d_action / d_tau)
+                with torch.enable_grad():
+                    actions_norm, vel_pred = self.model.predict_actions_and_joint_vel(batch)
+                actions = self.model.denormalize_actions(actions_norm)
+                result["velocities"] = vel_pred.detach().cpu().numpy().squeeze(0)
+            else:
+                if self.debug:
+                    with torch.enable_grad():
+                        actions_norm, vel_pred = self.model.predict_actions_and_joint_vel(batch)
+                    actions = self.model.denormalize_actions(actions_norm)
+                    result["debug_velocities"] = vel_pred.detach().cpu().numpy().squeeze(0)
+                else:
+                    with torch.no_grad():
+                        actions = self.model.forward(model_obs, goal)  # already denormalized
+        finally:
+            if original_chunk_size is not None:
+                self.model.chunk_size = original_chunk_size
 
         result["actions"] = actions.detach().cpu().numpy().squeeze(0)
         return result

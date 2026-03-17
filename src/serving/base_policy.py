@@ -16,6 +16,7 @@ import numpy as np
 import torch
 import torchvision.transforms as T
 from openpi_client import base_policy as _base_policy
+from src.debug import Debugger
 
 from src.serving.utils import (
     CLIP_MEAN,
@@ -64,6 +65,7 @@ class BaseServePolicy(_base_policy.BasePolicy):
         use_cam_right_wrist: bool = True,
         enable_csv_logging: bool = False,
         target_chunk_size: Optional[int] = None,
+        debug: bool = False,
     ):
         self.model = model.to(device)
         self.model.eval()
@@ -74,6 +76,9 @@ class BaseServePolicy(_base_policy.BasePolicy):
         self.arm_mode = arm_mode
         self.enable_csv_logging = enable_csv_logging
         self.target_chunk_size = target_chunk_size
+        self.debug = debug
+        self.debugger = Debugger(enabled=debug)
+        self.use_native_target_chunk_sampling = False
 
         # ---- arm mode → dimension & camera config ----
         if arm_mode == "left":
@@ -117,11 +122,15 @@ class BaseServePolicy(_base_policy.BasePolicy):
         if self.enable_csv_logging:
             self._init_csv_logger()
 
+        if self.debug:
+            logger.info(f"Debug enabled: output={self.debugger.output_dir}")
+
         logger.info(
             f"{self.__class__.__name__} initialized: device={device}, arm_mode={arm_mode}, "
             f"action_dim={self.action_dim}, chunk_size={self.chunk_size}, "
             f"action_mode={action_mode}, cameras={self.active_cameras}, "
-            f"target_chunk_size={target_chunk_size}, csv_logging={enable_csv_logging}"
+            f"target_chunk_size={target_chunk_size}, csv_logging={enable_csv_logging}, "
+            f"debug={debug}"
         )
 
     # ------------------------------------------------------------------
@@ -149,13 +158,51 @@ class BaseServePolicy(_base_policy.BasePolicy):
     # ------------------------------------------------------------------
     def infer(self, obs: Dict[str, Any]) -> Dict[str, Any]:
         """Preprocess → model inference → postprocess → return actions."""
+        do_debug = self.debugger.enabled
+        if do_debug:
+            self.debugger.begin_frame(
+                obs=obs,
+                model_name=self.__class__.__name__,
+                action_mode=self.action_mode,
+                arm_mode=self.arm_mode,
+                chunk_size=int(self.chunk_size),
+                target_chunk_size=self.target_chunk_size or int(self.chunk_size),
+                active_cameras=list(self.active_cameras),
+                default_prompt=self.default_prompt,
+            )
+
         # 1. Preprocess
         model_obs, goal = self._preprocess(obs)
+        if do_debug:
+            self.debugger.record_text(
+                raw_prompt=obs.get("prompt", self.default_prompt),
+                formatted_prompt=goal.get("lang_text", ""),
+            )
+            self.debugger.record_preprocessed_images(model_obs)
 
         # 2. Model-specific inference (subclass)
         result = self._model_inference(model_obs, goal)
         actions_np = result["actions"]  # (chunk_size, action_dim), denormalized
         vel_np = result.get("velocities")  # optional
+        debug_vel_np = result.get("debug_velocities")  # optional (debug only)
+        if do_debug:
+            self.debugger.record_actions(
+                stage="raw_model_output",
+                actions=actions_np,
+                arm_mode=self.arm_mode,
+            )
+            if vel_np is not None:
+                self.debugger.record_velocity(
+                    stage="raw_model_output",
+                    vel=vel_np,
+                    arm_mode=self.arm_mode,
+                )
+            elif debug_vel_np is not None:
+                self.debugger.record_velocity(
+                    stage="raw_model_output",
+                    vel=debug_vel_np,
+                    arm_mode=self.arm_mode,
+                )
 
         # 3. Convert to absolute actions according to action_mode
         current_state = self._get_current_state(obs, actions_np.shape[-1])
@@ -166,6 +213,12 @@ class BaseServePolicy(_base_policy.BasePolicy):
 
         # 5. Optional interpolation
         actions_np = self._maybe_interpolate(actions_np)
+        if do_debug:
+            self.debugger.record_actions(
+                stage="postprocessed_absolute",
+                actions=actions_np,
+                arm_mode=self.arm_mode,
+            )
 
         # 6. CSV logging
         if self.enable_csv_logging:
@@ -179,6 +232,19 @@ class BaseServePolicy(_base_policy.BasePolicy):
 
         if vel_np is not None:
             output["velocities"] = self._expand_vel_to_14d(vel_np).astype(np.float32)
+
+        if do_debug:
+            vel_for_post = vel_np if vel_np is not None else debug_vel_np
+            if vel_for_post is not None:
+                post_vel = self._expand_vel_to_14d(vel_for_post)
+                self.debugger.record_velocity(
+                    stage="postprocessed",
+                    vel=post_vel,
+                    arm_mode=self.arm_mode,
+                )
+
+        if do_debug:
+            self.debugger.finalize_frame(output, arm_mode=self.arm_mode)
 
         return output
 
@@ -352,6 +418,9 @@ class BaseServePolicy(_base_policy.BasePolicy):
 
     def _maybe_interpolate(self, actions: np.ndarray) -> np.ndarray:
         """Linearly interpolate action chunk to target_chunk_size if set."""
+        if self.use_native_target_chunk_sampling:
+            return actions
+
         if self.target_chunk_size is None or self.target_chunk_size == actions.shape[0]:
             return actions
 

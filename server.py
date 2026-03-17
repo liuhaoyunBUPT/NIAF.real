@@ -1,26 +1,42 @@
 """Unified NIAF model serving entry point.
 
-Usage examples::
+Required parameters
+-------------------
+- --model: one of [niaf, niaf_vel, beast, fast, oft]
+- --checkpoint: path to .ckpt
 
+Common optional parameters
+--------------------------
+- --port / --host: websocket server address (default: 8000 / 0.0.0.0)
+- --device: cuda or cpu
+- --action-mode / --arm-mode: override checkpoint settings
+- --target-chunk-size: interpolate output chunk length
+- --return-joint-vel: only for niaf_vel
+
+Debug mode
+----------
+- Add --debug when launching server.
+- Debug artifacts are written to niaf/debug/ (fixed path):
+  - dashboard page: niaf/debug/index.html
+  - latest payload: niaf/debug/latest.json
+  - figures: niaf/debug/assets/
+
+Quick examples
+--------------
     # NIAF
     python server.py --model niaf \\
         --checkpoint /path/to/niaf.ckpt --port 8000
 
-    # NIAFVel with velocity output
+    # NIAFVel + velocity output
     python server.py --model niaf_vel \\
-        --checkpoint /path/to/niaf_vel.ckpt --return-joint-vel
+        --checkpoint /path/to/niaf_vel.ckpt --return-joint-vel --port 8000
 
-    # BEAST
-    python server.py --model beast \\
-        --checkpoint /path/to/beast.ckpt
+    # Any model with debug dashboard
+    python server.py --model niaf \\
+        --checkpoint /path/to/niaf_vel.ckpt --debug
 
-    # FAST (autoregressive tokenizer)
-    python server.py --model fast \\
-        --checkpoint /path/to/fast.ckpt
-
-    # OFT (direct regression)
-    python server.py --model oft \\
-        --checkpoint /path/to/oft.ckpt
+    # 若你在远程 SSH，在 niaf 根目录执行：
+    python -m http.server 18080，然后浏览器打开 http://<IP>:18080/debug/index.html
 """
 
 import argparse
@@ -86,6 +102,7 @@ def _build_policy(
         use_cam_right_wrist=use_cam_right_wrist,
         enable_csv_logging=args.enable_csv_logging,
         target_chunk_size=args.target_chunk_size,
+        debug=args.debug,
     )
 
     if model_type == "niaf_vel":
@@ -174,6 +191,13 @@ def parse_args():
 
     # ---- Logging ----
     p.add_argument("--enable-csv-logging", action="store_true")
+
+    # ---- Unified debug visualization ----
+    p.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable unified VLA debug capture and dashboard output",
+    )
 
     # ---- NIAFVel specific ----
     p.add_argument(
