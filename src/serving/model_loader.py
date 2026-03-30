@@ -21,6 +21,72 @@ MODEL_REGISTRY: Dict[str, Tuple[str, str]] = {
 }
 
 
+def _to_plain_list(value: Any) -> Optional[list]:
+    """Convert list-like values (ListConfig / tuple / tensor) to a plain Python list."""
+    if value is None:
+        return None
+    if isinstance(value, torch.Tensor):
+        return value.detach().cpu().tolist()
+    try:
+        return list(value)
+    except TypeError:
+        return None
+
+
+def _resolve_action_stats_for_init(checkpoint_path: str) -> Dict[str, Any]:
+    """Resolve action stats kwargs for model initialization from checkpoint.
+
+    Older checkpoints may not contain direct ``action_min`` / ``action_max`` in
+    ``hyper_parameters``. This helper falls back to mode-specific keys
+    (e.g. ``action_min_relative``) and then to saved buffers in ``state_dict``.
+    """
+    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    hp = ckpt.get("hyper_parameters", {})
+    state_dict = ckpt.get("state_dict", {})
+
+    action_min = _to_plain_list(hp.get("action_min"))
+    action_max = _to_plain_list(hp.get("action_max"))
+    action_mode = hp.get("action_mode")
+    source = "hyper_parameters.action_min/action_max"
+
+    if action_min is None or action_max is None:
+        # Backward-compatible mode inference: explicit action_mode first,
+        # then legacy use_relative_action, then available stats keys.
+        if action_mode not in {"absolute", "relative", "delta_first"}:
+            if hp.get("use_relative_action", None) is True:
+                action_mode = "relative"
+            elif "action_min_delta_first" in hp and "action_max_delta_first" in hp:
+                action_mode = "delta_first"
+            elif "action_min_relative" in hp and "action_max_relative" in hp:
+                action_mode = "relative"
+            elif "action_min_absolute" in hp and "action_max_absolute" in hp:
+                action_mode = "absolute"
+
+        if action_mode in {"absolute", "relative", "delta_first"}:
+            mode_min = _to_plain_list(hp.get(f"action_min_{action_mode}"))
+            mode_max = _to_plain_list(hp.get(f"action_max_{action_mode}"))
+            if mode_min is not None and mode_max is not None:
+                action_min, action_max = mode_min, mode_max
+                source = f"hyper_parameters.action_min_{action_mode}/action_max_{action_mode}"
+
+    if action_min is None or action_max is None:
+        # Final fallback: saved buffers from state_dict
+        buf_min = state_dict.get("action_min")
+        buf_max = state_dict.get("action_max")
+        if isinstance(buf_min, torch.Tensor) and isinstance(buf_max, torch.Tensor):
+            action_min = buf_min.detach().cpu().tolist()
+            action_max = buf_max.detach().cpu().tolist()
+            source = "state_dict.action_min/action_max"
+
+    out: Dict[str, Any] = {
+        "action_min": action_min,
+        "action_max": action_max,
+        "action_mode": action_mode,
+        "source": source,
+    }
+    return out
+
+
 def _get_model_class(model_type: str) -> Type:
     """Dynamically import and return the model class."""
     if model_type not in MODEL_REGISTRY:
@@ -84,6 +150,7 @@ def _extract_checkpoint_info(checkpoint_path: str) -> Dict[str, Any]:
     # Common fields
     for key in (
         "action_mode", "arm_mode", "fps",
+        "use_relative_action",
         "delta_first_action_stats",
         "act_loss_weight", "vel_loss_weight", "jerk_loss_weight",
     ):
@@ -119,6 +186,25 @@ def load_model(
     model_cls = _get_model_class(model_type)
     logger.info(f"Loading {model_cls.__name__} from: {checkpoint_path}")
 
+    # Resolve optional action stats kwargs for backward compatibility
+    resolved_stats = _resolve_action_stats_for_init(checkpoint_path)
+    init_kwargs: Dict[str, Any] = {"vlm_path": vlm_path}
+
+    if (
+        resolved_stats.get("action_min") is not None
+        and resolved_stats.get("action_max") is not None
+    ):
+        init_kwargs["action_min"] = resolved_stats["action_min"]
+        init_kwargs["action_max"] = resolved_stats["action_max"]
+        logger.info(
+            "Init action stats source: %s (mode=%s, dims=%d)",
+            resolved_stats.get("source"),
+            resolved_stats.get("action_mode"),
+            len(resolved_stats["action_min"]),
+        )
+    else:
+        logger.info("Init action stats not resolved from checkpoint; using checkpoint defaults.")
+
     # Monkey-patch torch.load for PyTorch 2.6+ compatibility
     _orig_load = torch.load
 
@@ -132,7 +218,7 @@ def load_model(
             checkpoint_path,
             map_location=device,
             strict=False,
-            vlm_path=vlm_path,
+            **init_kwargs,
         )
     finally:
         torch.load = _orig_load
@@ -145,6 +231,39 @@ def load_model(
 
     # Extract metadata
     info = _extract_checkpoint_info(checkpoint_path)
+
+    # Backfill action_mode when old checkpoints only contain legacy fields
+    if "action_mode" not in info and resolved_stats.get("action_mode") in {
+        "absolute",
+        "relative",
+        "delta_first",
+    }:
+        info["action_mode"] = resolved_stats["action_mode"]
+        logger.info(
+            "Checkpoint action_mode missing; inferred action_mode=%s from %s",
+            resolved_stats["action_mode"],
+            resolved_stats.get("source"),
+        )
+    
+    # 将真正使用的归一化数值注册到 buf 张量上
+    action_mode = info.get("action_mode", getattr(model, "action_mode", None))
+    if action_mode == "delta_first" and "delta_first_action_stats" in info:
+        stats = info["delta_first_action_stats"]
+        arm_mode = getattr(model, "arm_mode", info.get("arm_mode", "dual"))
+        if arm_mode == "left":
+            stat_min = list(stats.get("min", []))[:7]
+            stat_max = list(stats.get("max", []))[:7]
+        elif arm_mode == "right":
+            stat_min = list(stats.get("min", []))[7:14]
+            stat_max = list(stats.get("max", []))[7:14]
+        else:
+            stat_min = list(stats.get("min", []))
+            stat_max = list(stats.get("max", []))
+            
+        if hasattr(model, "action_min_buf") and hasattr(model, "action_max_buf"):
+            model.action_min_buf.data = torch.tensor(stat_min, dtype=torch.float32, device=model.action_min_buf.device)
+            model.action_max_buf.data = torch.tensor(stat_max, dtype=torch.float32, device=model.action_max_buf.device)
+
     logger.info(f"Model loaded. Checkpoint info: {info}")
 
     return model, info

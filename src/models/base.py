@@ -71,6 +71,8 @@ class BASE(pl.LightningModule):
 
         load_pretrained: bool = False,
         pretrained_model_path: str = None,
+
+        **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()

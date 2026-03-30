@@ -222,7 +222,7 @@ def _siren_forward_with_model_in(
 
     final_hypo_params = OrderedDict((n.replace("_", "."), v) for n, v in hypo_params.items())
 
-    K = int(getattr(model, "chunk_size", 10))
+    K = int(getattr(model, "chunk_size", 50))
     coords_dtype = torch.float32 if use_fp32 else default_dtype
     coords = model._make_time_coords(B, K, device, coords_dtype)
     model_input = {"coords": coords}

@@ -68,6 +68,8 @@ class Debugger:
             "cameras": [],
             "left_arm_plot_path": "",
             "right_arm_plot_path": "",
+            "raw_action_shape": [],
+            "postprocessed_action_shape": [],
         }
 
         cam_map = {
@@ -140,7 +142,8 @@ class Debugger:
         left_plot, right_plot = self._plot_arm_debug_panels(arm_mode=arm_mode)
         self.frame["left_arm_plot_path"] = left_plot
         self.frame["right_arm_plot_path"] = right_plot
-        self.frame["output_action_shape"] = list(output["actions"].shape)
+        self.frame["raw_action_shape"] = list(self._raw_actions.shape) if self._raw_actions is not None else []
+        self.frame["postprocessed_action_shape"] = list(output["actions"].shape)
 
         step_json = os.path.join(self.output_dir, f"step_{self.step:06d}.json")
         with open(step_json, "w", encoding="utf-8") as f:
@@ -295,7 +298,7 @@ class Debugger:
 <head>
   <meta charset=\"UTF-8\" />
   <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />
-  <title>NIAF VLA Debug Dashboard</title>
+  <title>Debug Dashboard</title>
   <style>
     body{font-family:Arial,sans-serif;background:#111;color:#eee;margin:0;padding:16px}
     h1,h2{margin:8px 0 12px}
@@ -307,14 +310,15 @@ class Debugger:
   </style>
 </head>
 <body>
-  <h1>NIAF VLA Debug Dashboard</h1>
+  <h1>Debug Dashboard</h1>
   <div class=\"small\">Manual refresh (no auto reload).</div>
   <button id=\"refreshBtn\" style=\"margin:8px 0 12px;padding:6px 12px;cursor:pointer;\">Refresh</button>
   <h2>Summary</h2>
   <div id=\"summary\" class=\"card meta\"></div>
-  <h2>Cameras (Raw / Preprocessed)</h2>
+  <h2>Cameras</h2>
   <div id=\"cams\" class=\"row\"></div>
-  <h2>Arm Curves</h2>
+  <h2>Action Curves</h2>
+    <div id=\"actionShapeInfo\" class=\"card meta\" style=\"margin-bottom:12px\"></div>
   <div class=\"row\">
     <div class=\"card\"><div class=\"small\">Left arm panels</div><img id=\"left_arm_plot\" /></div>
     <div class=\"card\"><div class=\"small\">Right arm panels</div><img id=\"right_arm_plot\" /></div>
@@ -333,6 +337,11 @@ class Debugger:
     if(v === undefined || v === null || Number.isNaN(v)) return '-';
     return Number(v).toFixed(4);
   }
+
+    function formatShape(shape){
+        if(!Array.isArray(shape) || shape.length === 0) return '-';
+        return '[' + shape.join(', ') + ']';
+    }
 
   async function refresh(){
     try{
@@ -376,6 +385,9 @@ class Debugger:
 
       document.getElementById('left_arm_plot').src = (d.left_arm_plot_path || '') + '?t=' + Date.now();
       document.getElementById('right_arm_plot').src = (d.right_arm_plot_path || '') + '?t=' + Date.now();
+            document.getElementById('actionShapeInfo').textContent =
+                `raw model output shape: ${formatShape(d.raw_action_shape)}\n` +
+                `postprocessed (sent to client) shape: ${formatShape(d.postprocessed_action_shape)}`;
     } catch(e) {}
   }
 

@@ -1,4 +1,4 @@
-"""Unified NIAF model serving entry point.
+"""Unified model serving entry point.
 
 Required parameters
 -------------------

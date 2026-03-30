@@ -60,14 +60,9 @@ class NiafVelPolicy(BaseServePolicy):
                 actions = self.model.denormalize_actions(actions_norm)
                 result["velocities"] = vel_pred.detach().cpu().numpy().squeeze(0)
             else:
-                if self.debug:
-                    with torch.enable_grad():
-                        actions_norm, vel_pred = self.model.predict_actions_and_joint_vel(batch)
+                with torch.no_grad():
+                    actions_norm = self.model._generate_actions_siren(batch)
                     actions = self.model.denormalize_actions(actions_norm)
-                    result["debug_velocities"] = vel_pred.detach().cpu().numpy().squeeze(0)
-                else:
-                    with torch.no_grad():
-                        actions = self.model.forward(model_obs, goal)  # already denormalized
         finally:
             if original_chunk_size is not None:
                 self.model.chunk_size = original_chunk_size

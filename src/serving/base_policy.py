@@ -184,7 +184,6 @@ class BaseServePolicy(_base_policy.BasePolicy):
         result = self._model_inference(model_obs, goal)
         actions_np = result["actions"]  # (chunk_size, action_dim), denormalized
         vel_np = result.get("velocities")  # optional
-        debug_vel_np = result.get("debug_velocities")  # optional (debug only)
         if do_debug:
             self.debugger.record_actions(
                 stage="raw_model_output",
@@ -195,12 +194,6 @@ class BaseServePolicy(_base_policy.BasePolicy):
                 self.debugger.record_velocity(
                     stage="raw_model_output",
                     vel=vel_np,
-                    arm_mode=self.arm_mode,
-                )
-            elif debug_vel_np is not None:
-                self.debugger.record_velocity(
-                    stage="raw_model_output",
-                    vel=debug_vel_np,
                     arm_mode=self.arm_mode,
                 )
 
@@ -234,9 +227,8 @@ class BaseServePolicy(_base_policy.BasePolicy):
             output["velocities"] = self._expand_vel_to_14d(vel_np).astype(np.float32)
 
         if do_debug:
-            vel_for_post = vel_np if vel_np is not None else debug_vel_np
-            if vel_for_post is not None:
-                post_vel = self._expand_vel_to_14d(vel_for_post)
+            if vel_np is not None:
+                post_vel = self._expand_vel_to_14d(vel_np)
                 self.debugger.record_velocity(
                     stage="postprocessed",
                     vel=post_vel,
