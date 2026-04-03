@@ -190,6 +190,15 @@ class BSpline_Tokenizer(TokenizerBase):
         tokens = self.llm_tokens_to_mp_tokens(llm_tokens)
         return self.reconstruct_traj(tokens, times=times, **kwargs)
 
+    def reconstruct_vel_from_llm_tokens(self, llm_tokens, times=None, execution_hz=30.0, **kwargs):
+        tokens = self.llm_tokens_to_mp_tokens(llm_tokens)
+        return self.reconstruct_traj_vel(
+            tokens,
+            times=times,
+            execution_hz=execution_hz,
+            **kwargs,
+        )
+
     @torch.no_grad()
     @autocast_float32
     def encode_continuous(self, trajs, update_bounds=False):
@@ -253,6 +262,65 @@ class BSpline_Tokenizer(TokenizerBase):
 
         # 7. 返回最终的、完整的、连续的动作轨迹。
         return pos
+
+    @torch.no_grad()
+    @autocast_float32
+    def reconstruct_traj_vel(self, tokens, times=None, execution_hz=30.0, **kwargs):
+        if execution_hz <= 0:
+            raise ValueError(f"execution_hz must be > 0, got {execution_hz}")
+
+        if len(tokens.shape) == 3:
+            tokens = einops.rearrange(tokens, "b t d -> b (d t)")
+
+        params = self.decode(tokens)
+
+        if times is None:
+            times = einops.repeat(self.times, 't -> b t', b=params.shape[0])
+
+        if self.init_pos and kwargs.get("init_p") is not None:
+            _params = einops.rearrange(params, "b (d t) -> b t d", t=self.num_basis, d=self.num_dof)
+            _params[:, 0, :self.joint_dof] = kwargs["init_p"][:, :self.joint_dof]
+            params = einops.rearrange(_params, "b t d -> b (d t)")
+
+        if not hasattr(self.mp, "get_traj_vel"):
+            raise RuntimeError("B-spline derivative API get_traj_vel is unavailable in mp backend")
+
+        self.mp.update_inputs(times=times, params=params[..., :self.joint_dof * self.num_basis])
+        vel = self.mp.get_traj_vel()
+        if vel is None:
+            raise RuntimeError("B-spline derivative API get_traj_vel returned None")
+
+        if times.shape[-1] <= 1:
+            raise ValueError("At least 2 time points are required to scale velocity")
+        dt_tokenizer = torch.mean(times[..., 1:] - times[..., :-1])
+        dt_exec = 1.0 / float(execution_hz)
+        vel = vel * (dt_tokenizer / dt_exec)
+
+        if self.gripper_mp is not None:
+            gripper_params = params[..., -self.gripper_dof * self.num_basis:]
+            self.gripper_mp.update_inputs(times=times, params=gripper_params)
+
+            gripper_degree = getattr(getattr(self.gripper_mp, "basis_gn", None), "degree_p", None)
+            if gripper_degree == 0:
+                # Zero-order B-spline is piecewise constant, so velocity is zero in control intervals.
+                gripper_vel = torch.zeros(
+                    vel.shape[0],
+                    vel.shape[1],
+                    self.gripper_dof,
+                    dtype=vel.dtype,
+                    device=vel.device,
+                )
+            else:
+                if not hasattr(self.gripper_mp, "get_traj_vel"):
+                    raise RuntimeError("B-spline derivative API get_traj_vel is unavailable in gripper mp backend")
+                gripper_vel = self.gripper_mp.get_traj_vel()
+                if gripper_vel is None:
+                    raise RuntimeError("B-spline derivative API get_traj_vel returned None for gripper mp")
+                gripper_vel = gripper_vel * (dt_tokenizer / dt_exec)
+
+            vel = torch.cat([vel, gripper_vel], dim=-1)
+
+        return vel
 
     @torch.no_grad()
     def reconstruct_traj_continuous(self, params, times=None, **kwargs):

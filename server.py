@@ -102,15 +102,13 @@ def _build_policy(
         use_cam_right_wrist=use_cam_right_wrist,
         enable_csv_logging=args.enable_csv_logging,
         target_chunk_size=args.target_chunk_size,
+        return_joint_vel=args.return_joint_vel,
+        execution_hz=args.execution_hz,
         debug=args.debug,
     )
 
     if model_type == "niaf_vel":
-        return policy_cls(
-            model,
-            return_joint_vel=args.return_joint_vel,
-            **common_kwargs,
-        )
+        return policy_cls(model, **common_kwargs)
 
     return policy_cls(model, **common_kwargs)
 
@@ -202,7 +200,11 @@ def parse_args():
     # ---- NIAFVel specific ----
     p.add_argument(
         "--return-joint-vel", action="store_true",
-        help="(niaf_vel only) Return joint velocities alongside positions",
+        help="Return joint velocities alongside positions for supported models",
+    )
+    p.add_argument(
+        "--execution-hz", type=float, default=30.0,
+        help="Execution frequency (Hz) used for velocity conversion",
     )
 
     return p.parse_args()
@@ -231,6 +233,8 @@ def main():
     # 3. Metadata
     _, display_name, meta_type = POLICY_MAP[model_type]
     metadata = policy.build_metadata(display_name, meta_type)
+    if model_type in {"beast", "fast"}:
+        metadata["returns_velocity"] = True
     if args.return_joint_vel and model_type == "niaf_vel":
         metadata["returns_velocity"] = True
 

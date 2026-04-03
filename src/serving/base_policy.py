@@ -65,6 +65,8 @@ class BaseServePolicy(_base_policy.BasePolicy):
         use_cam_right_wrist: bool = True,
         enable_csv_logging: bool = False,
         target_chunk_size: Optional[int] = None,
+        return_joint_vel: bool = False,
+        execution_hz: float = 30.0,
         debug: bool = False,
     ):
         self.model = model.to(device)
@@ -76,6 +78,10 @@ class BaseServePolicy(_base_policy.BasePolicy):
         self.arm_mode = arm_mode
         self.enable_csv_logging = enable_csv_logging
         self.target_chunk_size = target_chunk_size
+        self.return_joint_vel = return_joint_vel
+        self.execution_hz = float(execution_hz)
+        if self.execution_hz <= 0:
+            raise ValueError(f"execution_hz must be > 0, got {self.execution_hz}")
         self.debug = debug
         self.debugger = Debugger(enabled=debug)
         self.use_native_target_chunk_sampling = False
@@ -130,8 +136,16 @@ class BaseServePolicy(_base_policy.BasePolicy):
             f"action_dim={self.action_dim}, chunk_size={self.chunk_size}, "
             f"action_mode={action_mode}, cameras={self.active_cameras}, "
             f"target_chunk_size={target_chunk_size}, csv_logging={enable_csv_logging}, "
+            f"return_joint_vel={self.return_joint_vel}, execution_hz={self.execution_hz}, "
             f"debug={debug}"
         )
+
+    def should_return_velocity(self, obs: Dict[str, Any]) -> bool:
+        """Return True if velocity output is requested by flag or control mode."""
+        if self.return_joint_vel:
+            return True
+        control_mode = str(obs.get("control_mode", "")).strip().lower()
+        return control_mode == "mit"
 
     # ------------------------------------------------------------------
     #  Abstract method — subclasses implement model-specific inference
@@ -206,6 +220,8 @@ class BaseServePolicy(_base_policy.BasePolicy):
 
         # 5. Optional interpolation
         actions_np = self._maybe_interpolate(actions_np)
+        if vel_np is not None:
+            vel_np = self._maybe_interpolate(vel_np)
         if do_debug:
             self.debugger.record_actions(
                 stage="postprocessed_absolute",
@@ -297,6 +313,7 @@ class BaseServePolicy(_base_policy.BasePolicy):
         }
 
         model_obs: Dict[str, Any] = {"rgb_obs": {}}
+        model_obs["control_mode"] = obs.get("control_mode")
         for model_key, (client_key, enabled) in cam_map.items():
             if not enabled:
                 continue

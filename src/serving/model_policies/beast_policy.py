@@ -18,5 +18,16 @@ class BeastPolicy(BaseServePolicy):
         self, model_obs: Dict[str, Any], goal: Dict[str, Any]
     ) -> Dict[str, np.ndarray]:
         with torch.no_grad():
+            if self.should_return_velocity(model_obs):
+                actions, velocities = self.model.forward_with_velocity(
+                    model_obs,
+                    goal,
+                    execution_hz=self.execution_hz,
+                )
+                return {
+                    "actions": actions.detach().cpu().numpy().squeeze(0),
+                    "velocities": velocities.detach().cpu().numpy().squeeze(0),
+                }
+
             actions = self.model.forward(model_obs, goal)  # (1, T, D) denormalized
-        return {"actions": actions.cpu().numpy().squeeze(0)}
+        return {"actions": actions.detach().cpu().numpy().squeeze(0)}

@@ -5,6 +5,7 @@ and optional EMA weight loading.
 """
 
 import logging
+from copy import deepcopy
 from typing import Any, Dict, Optional, Tuple, Type
 
 import torch
@@ -164,6 +165,44 @@ def _extract_checkpoint_info(checkpoint_path: str) -> Dict[str, Any]:
     return info
 
 
+def _resolve_beast_mp_tokenizer_for_init(checkpoint_path: str) -> Optional[Dict[str, Any]]:
+    """Resolve and normalize BEAST mp_tokenizer config from checkpoint.
+
+    Some legacy checkpoints store ``mp_tokenizer._target_`` under external
+    package paths (e.g. beast_calvin). Serving should always instantiate the
+    local NIAF tokenizer implementation to ensure API compatibility.
+    """
+    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    hp = ckpt.get("hyper_parameters", {})
+    mp_tokenizer = hp.get("mp_tokenizer")
+
+    if mp_tokenizer is None:
+        return None
+
+    mp_cfg = deepcopy(mp_tokenizer)
+    target = None
+    if isinstance(mp_cfg, dict):
+        target = mp_cfg.get("_target_")
+    else:
+        target = getattr(mp_cfg, "_target_", None)
+
+    if not isinstance(target, str):
+        return mp_cfg
+
+    if target.endswith("bspline_tokenizer.BSpline_Tokenizer") and target != "src.models.tokenizers.bspline_tokenizer.BSpline_Tokenizer":
+        if isinstance(mp_cfg, dict):
+            mp_cfg["_target_"] = "src.models.tokenizers.bspline_tokenizer.BSpline_Tokenizer"
+        else:
+            setattr(mp_cfg, "_target_", "src.models.tokenizers.bspline_tokenizer.BSpline_Tokenizer")
+        logger.info(
+            "Rewrote legacy mp_tokenizer target: %s -> %s",
+            target,
+            "src.models.tokenizers.bspline_tokenizer.BSpline_Tokenizer",
+        )
+
+    return mp_cfg
+
+
 def load_model(
     model_type: str,
     checkpoint_path: str,
@@ -189,6 +228,11 @@ def load_model(
     # Resolve optional action stats kwargs for backward compatibility
     resolved_stats = _resolve_action_stats_for_init(checkpoint_path)
     init_kwargs: Dict[str, Any] = {"vlm_path": vlm_path}
+
+    if model_type == "beast":
+        mp_tokenizer_cfg = _resolve_beast_mp_tokenizer_for_init(checkpoint_path)
+        if mp_tokenizer_cfg is not None:
+            init_kwargs["mp_tokenizer"] = mp_tokenizer_cfg
 
     if (
         resolved_stats.get("action_min") is not None

@@ -2,7 +2,7 @@
 BEAST模型 - MP tokenizer动作编码/解码
 """
 import logging
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import hydra
 import numpy as np
@@ -181,6 +181,43 @@ class BEAST(BASE):
 
         return self.denormalize_actions(actions_normalized)
 
+    @torch.no_grad()
+    def forward_with_velocity(
+        self, obs: Dict, goal: Dict, execution_hz: float = 30.0
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """推理：返回反归一化动作与关节速度（rad/s）。"""
+        if not hasattr(self.action_tokenizer, "reconstruct_vel_from_llm_tokens"):
+            tokenizer_cls = self.action_tokenizer.__class__
+            raise RuntimeError(
+                "Loaded BSpline tokenizer does not support velocity decoding. "
+                f"Tokenizer={tokenizer_cls.__module__}.{tokenizer_cls.__name__}. "
+                "Please ensure checkpoint mp_tokenizer._target_ resolves to "
+                "src.models.tokenizers.bspline_tokenizer.BSpline_Tokenizer."
+            )
+
+        rgb_obs_batch = {}
+        for k in self.rgb_obs_keys:
+            if k in obs["rgb_obs"]:
+                rgb_obs_batch[k] = obs["rgb_obs"][k]
+        batch = {
+            "rgb_obs": rgb_obs_batch,
+            "lang_text": [goal["lang_text"]],
+        }
+
+        llm_action_tokens = self.llm_generates(batch)
+        actions_normalized = self.action_tokenizer.reconstruct_from_llm_tokens(
+            llm_action_tokens, times=None
+        )
+        vel_normalized = self.action_tokenizer.reconstruct_vel_from_llm_tokens(
+            llm_action_tokens,
+            times=None,
+            execution_hz=execution_hz,
+        )
+
+        actions = self.denormalize_actions(actions_normalized)
+        velocities = self.denormalize_velocities(vel_normalized)
+        return actions, velocities
+
     # -----------------------------------------------------------------
     #                 MP tokenizer 归一化器预计算
     # -----------------------------------------------------------------
@@ -254,3 +291,22 @@ class BEAST(BASE):
 
         actions = (normalized_actions + 1) / 2 * (action_max - action_min) + action_min
         return actions
+
+    def denormalize_velocities(self, normalized_velocities: torch.Tensor) -> torch.Tensor:
+        """将归一化动作速度转换为真实动作空间速度。"""
+        action_min = self.action_min.to(normalized_velocities.device)
+        action_max = self.action_max.to(normalized_velocities.device)
+
+        output_dim = normalized_velocities.shape[-1]
+        stats_dim = action_min.shape[-1]
+
+        if output_dim != stats_dim:
+            arm_mode = getattr(self, 'arm_mode', 'left')
+            if arm_mode == 'right':
+                action_min = action_min[-output_dim:]
+                action_max = action_max[-output_dim:]
+            else:
+                action_min = action_min[:output_dim]
+                action_max = action_max[:output_dim]
+
+        return normalized_velocities * (action_max - action_min) / 2

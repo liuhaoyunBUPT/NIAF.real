@@ -35,4 +35,5 @@ env/
 Thumbs.db
 
 # Project debug outputs
+scripts/
 /debug/
