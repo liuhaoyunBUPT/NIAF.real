@@ -7,7 +7,8 @@ device: 'cuda'
 batch_size: 16
 devices: 4
 num_workers: 4
-max_epochs: 30
+max_epochs: 50
+checkpoint_path: '/data1/lhy/beast_log/aloha_siren_vel/2026-03-26/18-13-40/checkpoints/epoch=49_loss=0.0003.ckpt'
 
 act_dim: 14
 chunk_size: 50
@@ -34,7 +35,7 @@ rgb_obs_keys:
   - rgb_right_wrist
 
 # VLM路径
-vlm_path: /data1/lhy/models/Florence-2/base
+vlm_path: /data1/lhy/models/Florence-2/large
 
 # Trainer配置
 trainer:
@@ -42,6 +43,8 @@ trainer:
   precision: bf16-mixed
   max_epochs: ${max_epochs}
   accelerator: gpu
+  gradient_clip_algorithm: norm
+  gradient_clip_val: 0.5
   strategy:
     _target_: pytorch_lightning.strategies.DDPStrategy
     gradient_as_bucket_view: False

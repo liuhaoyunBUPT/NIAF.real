@@ -1,0 +1,62 @@
+# configs/config_beast_vel.yaml
+# BEASTVel模型训练配置
+
+defaults:
+  - _base
+  - action_stats: watercup
+  - callbacks: default
+  - datamodule: default_vel
+  - model: beast_vel
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_
+
+ckpt_monitor: train/total_loss_epoch
+
+root_data_dir: /data1/lhy/traindata/watercup
+lang_text: "Move the water cup onto the coaster to prevent water from spilling out"
+
+action_mode: delta_first
+action_min: ${action_min_delta_first}
+action_max: ${action_max_delta_first}
+
+# Beast tokenizer 配置
+num_basis: 10
+seq_len: ${chunk_size}
+vocab_size: 256
+degree_p: 3
+init_pos: False
+pre_compute_w_bound: False
+pre_compute_w_bound_steps: 10000
+update_w_bound: True
+
+# 可导组合损失参数
+fps: 30
+lambda_pos: 1.0
+lambda_vel: 0.1
+query_init_std: 0.01
+bound_warmup_steps: 500
+
+# 保留 logger 字段用于 _base.yaml 的 hydra 路径引用
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  save_dir: .
+  group: beast_vel
+  log_model: false
+  project: niaf
+  name: ${hydra:runtime.choices.model}_seq${chunk_size}_${now:%Y%m%d_%H%M%S}
+
+# 同时启用 WandB + TensorBoard，分项展示 llm/pos/vel
+loggers:
+  wandb:
+    _target_: pytorch_lightning.loggers.WandbLogger
+    save_dir: .
+    group: beast_vel
+    log_model: false
+    project: niaf
+    name: ${hydra:runtime.choices.model}_seq${chunk_size}_${now:%Y%m%d_%H%M%S}
+  tensorboard:
+    _target_: pytorch_lightning.loggers.TensorBoardLogger
+    save_dir: .
+    name: tensorboard
+    version: beast_vel_${now:%Y%m%d_%H%M%S}

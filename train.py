@@ -35,6 +35,7 @@ import sys
 import os
 import gc
 import traceback
+from typing import Optional, Tuple
 
 # 设置临时目录环境变量（必须在导入wandb之前）
 os.environ.setdefault('TMPDIR', '/tmp')
@@ -169,6 +170,43 @@ def load_model_module(model_target: str):
     return importlib.import_module(module_path)
 
 
+def resolve_checkpoint_path(cfg: DictConfig) -> Optional[Path]:
+    """解析 checkpoint 路径：显式路径优先，否则回退到自动发现。"""
+    explicit_path = cfg.get("checkpoint_path", None)
+    if explicit_path is None:
+        return get_last_checkpoint(Path.cwd())
+
+    explicit_path = str(explicit_path).strip()
+    if explicit_path == "":
+        return get_last_checkpoint(Path.cwd())
+
+    ckpt_path = Path(explicit_path).expanduser()
+    if not ckpt_path.is_absolute():
+        ckpt_path = Path(hydra.utils.get_original_cwd()) / ckpt_path
+    ckpt_path = ckpt_path.resolve()
+
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Configured checkpoint_path does not exist: {ckpt_path}")
+    if ckpt_path.is_dir():
+        raise IsADirectoryError(f"Configured checkpoint_path points to a directory, expected file: {ckpt_path}")
+    return ckpt_path
+
+
+def load_weights_only(model: LightningModule, checkpoint_path: Path) -> Tuple[list[str], list[str]]:
+    """仅加载模型权重，不恢复优化器或训练状态。"""
+    checkpoint = torch.load(checkpoint_path.as_posix(), map_location="cpu", weights_only=False)
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        state_dict = checkpoint["state_dict"]
+    else:
+        state_dict = checkpoint
+
+    if not isinstance(state_dict, dict):
+        raise TypeError(f"Invalid checkpoint format at {checkpoint_path}, expected dict state_dict.")
+
+    incompatible = model.load_state_dict(state_dict, strict=False)
+    return list(incompatible.missing_keys), list(incompatible.unexpected_keys)
+
+
 @hydra.main(version_base=None, config_path="configs", config_name="config_niaf")
 def train(cfg: DictConfig) -> None:
     try:
@@ -210,16 +248,20 @@ def train(cfg: DictConfig) -> None:
         # 初始化数据模块
         datamodule = hydra.utils.instantiate(cfg.datamodule)
 
-        # 初始化模型
-        checkpoint_path = get_last_checkpoint(Path.cwd())
+        # 初始化模型（始终按当前配置实例化，checkpoint 仅用于加载权重）
+        model = hydra.utils.instantiate(cfg.model)
+        checkpoint_path = resolve_checkpoint_path(cfg)
         if checkpoint_path is None:
-            model = hydra.utils.instantiate(cfg.model)
             log_rank_0(f"Initialized {model_class_name} model from scratch")
         else:
-            models_m = load_model_module(model_target)
-            model_class = getattr(models_m, model_class_name)
-            model = model_class.load_from_checkpoint(checkpoint_path.as_posix())
-            log_rank_0(f"Loaded model from checkpoint: {checkpoint_path}")
+            missing_keys, unexpected_keys = load_weights_only(model, checkpoint_path)
+            log_rank_0(f"Loaded weights from checkpoint: {checkpoint_path}")
+            if len(missing_keys) > 0:
+                log_rank_0(f"Missing keys when loading weights: {len(missing_keys)}")
+                log_rank_0(f"First missing keys: {missing_keys[:10]}")
+            if len(unexpected_keys) > 0:
+                log_rank_0(f"Unexpected keys when loading weights: {len(unexpected_keys)}")
+                log_rank_0(f"First unexpected keys: {unexpected_keys[:10]}")
 
         # 设置训练
         train_logger = setup_logger(cfg, model)

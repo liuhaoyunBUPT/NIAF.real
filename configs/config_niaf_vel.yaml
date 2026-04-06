@@ -3,7 +3,7 @@
 
 defaults:
   - _base
-  - action_stats: pick_pineapple
+  - action_stats: watercup
   - callbacks: default
   - datamodule: default_vel
   - model: niaf_vel
@@ -13,8 +13,8 @@ defaults:
 
 ckpt_monitor: train/total_loss_epoch
 
-root_data_dir: /data1/lhy/traindata/pick_pineapple
-lang_text: "Pick up the pineapple toy and put it on the plate"
+root_data_dir: /data1/lhy/traindata/watercup
+lang_text: "Move the water cup onto the coaster to prevent water from spilling out"
 action_mode: delta_first
 action_min: ${action_min_delta_first}
 action_max: ${action_max_delta_first}
@@ -22,7 +22,18 @@ action_max: ${action_max_delta_first}
 fps: 30
 act_loss_weight: 1.0
 vel_loss_weight: 0.1
-jerk_loss_weight: 0.0
+jerk_loss_weight: 1e-6
+jerk_loss_beta: 1.0
+jerk_loss_reduction: mean
+
+# 续训默认使用更小学习率，降低 jerk 正则引入时的训练震荡风险
+model:
+  optimizer:
+    learning_rate: 3e-6
+  lr_scheduler:
+    lr_scheduler:
+      init_lr: 3e-6
+      lr: 3e-6
 
 logger:
   _target_: pytorch_lightning.loggers.WandbLogger
@@ -30,4 +41,4 @@ logger:
   group: niaf_vel
   log_model: false
   project: niaf
-  name: seq${chunk_size}_${now:%Y%m%d_%H%M%S}
+  name: ${hydra:runtime.choices.model}_seq${chunk_size}_${now:%Y%m%d_%H%M%S}

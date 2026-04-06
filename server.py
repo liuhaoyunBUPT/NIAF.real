@@ -2,7 +2,7 @@
 
 Required parameters
 -------------------
-- --model: one of [niaf, niaf_vel, beast, fast, oft]
+- --model: one of [niaf, niaf_vel, beast, beast_vel, fast, oft]
 - --checkpoint: path to .ckpt
 
 Common optional parameters
@@ -11,7 +11,7 @@ Common optional parameters
 - --device: cuda or cpu
 - --action-mode / --arm-mode: override checkpoint settings
 - --target-chunk-size: interpolate output chunk length
-- --return-joint-vel: only for niaf_vel
+- --return-joint-vel: for models that support velocity output (niaf_vel/beast/beast_vel/fast)
 
 Debug mode
 ----------
@@ -46,6 +46,7 @@ import socket
 from src.serving.model_loader import load_model
 from src.serving.base_policy import BaseServePolicy
 from src.serving.model_policies.beast_policy import BeastPolicy
+from src.serving.model_policies.beast_vel_policy import BeastVelPolicy
 from src.serving.model_policies.fast_policy import FastPolicy
 from src.serving.model_policies.oft_policy import OftPolicy
 from src.serving.model_policies.niaf_policy import NiafPolicy
@@ -58,6 +59,7 @@ POLICY_MAP = {
     "niaf": (NiafPolicy, "NIAF", "niaf"),
     "niaf_vel": (NiafVelPolicy, "NIAFVel", "niaf_vel"),    
     "beast": (BeastPolicy, "BEAST", "beast"),
+    "beast_vel": (BeastVelPolicy, "BEASTVel", "beast_vel"),
     "fast": (FastPolicy, "FAST", "fast"),
     "oft": (OftPolicy, "OFT", "oft"),
 }
@@ -233,7 +235,7 @@ def main():
     # 3. Metadata
     _, display_name, meta_type = POLICY_MAP[model_type]
     metadata = policy.build_metadata(display_name, meta_type)
-    if model_type in {"beast", "fast"}:
+    if model_type in {"beast", "beast_vel", "fast"}:
         metadata["returns_velocity"] = True
     if args.return_joint_vel and model_type == "niaf_vel":
         metadata["returns_velocity"] = True

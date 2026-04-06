@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Registry: model_type → (module_path, class_name)
 MODEL_REGISTRY: Dict[str, Tuple[str, str]] = {
     "beast": ("src.models.beast", "BEAST"),
+    "beast_vel": ("src.models.beast_vel", "BEASTVel"),
     "fast": ("src.models.fast", "FAST"),
     "oft": ("src.models.oft", "OFT"),
     "niaf": ("src.models.niaf", "NIAF"),
@@ -213,7 +214,7 @@ def load_model(
     """Load a NIAF model from checkpoint.
 
     Args:
-        model_type: One of ``beast``, ``fast``, ``oft``, ``niaf``, ``niaf_vel``.
+        model_type: One of ``beast``, ``beast_vel``, ``fast``, ``oft``, ``niaf``, ``niaf_vel``.
         checkpoint_path: Path to the ``.ckpt`` file.
         device: Target device.
         vlm_path: Path to the Florence-2 backbone weights.
@@ -229,7 +230,7 @@ def load_model(
     resolved_stats = _resolve_action_stats_for_init(checkpoint_path)
     init_kwargs: Dict[str, Any] = {"vlm_path": vlm_path}
 
-    if model_type == "beast":
+    if model_type in {"beast", "beast_vel"}:
         mp_tokenizer_cfg = _resolve_beast_mp_tokenizer_for_init(checkpoint_path)
         if mp_tokenizer_cfg is not None:
             init_kwargs["mp_tokenizer"] = mp_tokenizer_cfg

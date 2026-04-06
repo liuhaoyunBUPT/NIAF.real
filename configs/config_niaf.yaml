@@ -23,4 +23,4 @@ logger:
   group: niaf
   log_model: false
   project: niaf
-  name: seq${chunk_size}_${now:%Y%m%d_%H%M%S}
+  name: ${hydra:runtime.choices.model}_seq${chunk_size}_${now:%Y%m%d_%H%M%S}

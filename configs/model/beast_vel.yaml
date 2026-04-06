@@ -1,0 +1,16 @@
+# configs/model/beast_vel.yaml
+# BEASTVel模型 — BEAST + differentiable velocity supervision
+
+defaults:
+  - beast
+
+_target_: src.models.beast_vel.BEASTVel
+
+# 速度监督参数
+fps: ${fps}
+lambda_pos: ${lambda_pos}
+lambda_vel: ${lambda_vel}
+query_init_std: ${query_init_std}
+bound_warmup_steps: ${bound_warmup_steps}
+action_mode: ${action_mode}
+arm_mode: ${arm_mode}
