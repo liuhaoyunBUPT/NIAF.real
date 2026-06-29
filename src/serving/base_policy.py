@@ -54,7 +54,7 @@ class BaseServePolicy(_base_policy.BasePolicy):
         device: str = "cuda",
         default_prompt: str = "pick up the object",
         image_size: int = 224,
-        robot_name: str = "ALOHA Bimanual",
+        robot_name: str = "AgileX Cobot Magic",
         num_arms: str = "2",
         action_space: str = "Joint Position",
         prompt_style: str = "minimal",

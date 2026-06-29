@@ -79,7 +79,7 @@ def generate_policy_prompt(
 
 
 def make_prompt_formatter(
-    robot_name: str = "ALOHA Bimanual",
+    robot_name: str = "AgileX Cobot Magic",
     num_arms: str = "2",
     action_space: str = "Joint Position",
     prompt_style: str = "minimal",

@@ -167,7 +167,7 @@ def parse_args():
 
     # ---- Prompt ----
     p.add_argument("--default-prompt", type=str, default="pick up the object")
-    p.add_argument("--robot-name", type=str, default="ALOHA Bimanual")
+    p.add_argument("--robot-name", type=str, default="AgileX Cobot Magic")
     p.add_argument("--num-arms", type=str, default="2")
     p.add_argument("--action-space", type=str, default="Joint Position")
     p.add_argument(
@@ -250,7 +250,7 @@ def main():
     logger.info(f"Metadata: {metadata}")
     logger.info(f"Host: {hostname} ({local_ip}), Port: {args.port}")
     logger.info(
-        f"Client: python -m examples.mobile_aloha_AgileX.main "
+        f"Client: python -m agilex_cobot_magic.main "
         f"--host {local_ip} --port {args.port}"
     )
     logger.info("=" * 60)

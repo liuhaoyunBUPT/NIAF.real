@@ -1,13 +1,21 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "niaf"
-version = "0.1.0"
-description = "Neural Implicit Action Fields – VLA robot policy training framework"
+version = "1.0.0"
+description = "Neural Implicit Action Fields: From Discrete Waypoints to Continuous Functions for Vision-Language-Action Models"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 
+[project.optional-dependencies]
+dev = ["pytest", "ipdb"]
+
+[project.urls]
+Homepage = "https://github.com/liuhaoyunBUPT/NIAF.real"
+Paper = "https://arxiv.org/abs/2603.01766"
+
 [tool.setuptools.packages.find]
-include = ["niaf*"]
+include = ["src*"]

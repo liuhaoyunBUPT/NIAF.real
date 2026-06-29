@@ -1,0 +1,7 @@
+[project]
+name = "agilex-cobot-magic"
+version = "0.1.0"
+description = "AgileX Cobot Magic real-robot client for NIAF/OpenPI websocket policies"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []

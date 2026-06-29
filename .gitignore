@@ -37,3 +37,21 @@ Thumbs.db
 # Project debug outputs
 scripts/
 /debug/
+
+# Real-robot runtime artifacts
+client/agilex_cobot_magic/monitor/datas/
+client/agilex_cobot_magic/monitor/videos/
+client/agilex_cobot_magic/**/*.csv
+client/agilex_cobot_magic/**/*.png
+client/agilex_cobot_magic/**/*.mp4
+client/agilex_cobot_magic/.venv/
+client/agilex_cobot_magic/packages/
+
+# Local model/data artifacts
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+/data/
+/checkpoints/
+/logs/
