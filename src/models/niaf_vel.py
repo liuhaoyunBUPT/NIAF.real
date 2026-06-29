@@ -649,38 +649,43 @@ class NIAFVel(NIAF):
 
             # 使用 act_loss_weight 加权位置 loss
             loss = float(self.vel_cfg.act_loss_weight) * loss_act
-            if need_vel:
+            if need_derivs:
                 with torch.enable_grad():
-                    dactions_dtau = _d1_dtau_from_actions_and_coords(
-                        actions_pred,
-                        coords_in,
-                        create_graph=False,
-                        keep_graph=False,
-                    )
-                    vel_pred = self._pred_joint_vel_rad_s_from_dactions_dtau(dactions_dtau)
-                vel_pred = vel_pred.detach()
-                vel_gt = dataset_batch["joint_vel"].to(self.device)
-                use = min(vel_pred.shape[1], vel_gt.shape[1], T)
-                use = max(1, use - 1)
-                loss_vel = F.mse_loss(vel_pred[:, :use, :], vel_gt[:, :use, :])
-                loss = loss + float(self.vel_cfg.vel_loss_weight) * loss_vel
-                self.log("val/vel_loss", loss_vel, sync_dist=True, batch_size=B)
+                    if need_jerk:
+                        dactions_dtau, _d2, d3actions_dtau3 = _d1d2d3_dtau_from_actions_and_coords(
+                            actions_pred,
+                            coords_in,
+                            create_graph=False,
+                            keep_graph=False,
+                        )
+                        jerk_pred = self._pred_joint_jerk_rad_s3_from_d3actions_dtau3(d3actions_dtau3)
+                    else:
+                        dactions_dtau = _d1_dtau_from_actions_and_coords(
+                            actions_pred,
+                            coords_in,
+                            create_graph=False,
+                            keep_graph=False,
+                        )
 
-            if need_jerk:
-                with torch.enable_grad():
-                    _d1, _d2, d3actions_dtau3 = _d1d2d3_dtau_from_actions_and_coords(
-                        actions_pred,
-                        coords_in,
-                        create_graph=False,
-                        keep_graph=False,
-                    )
-                    jerk_pred = self._pred_joint_jerk_rad_s3_from_d3actions_dtau3(d3actions_dtau3)
-                jerk_pred = jerk_pred.detach()
-                use = min(jerk_pred.shape[1], T)
-                use = max(1, use - 1)
-                loss_jerk = torch.mean(jerk_pred[:, :use, :].pow(2))
-                loss = loss + float(self.vel_cfg.jerk_loss_weight) * loss_jerk
-                self.log("val/jerk_loss", loss_jerk, sync_dist=True, batch_size=B)
+                    if need_vel:
+                        vel_pred = self._pred_joint_vel_rad_s_from_dactions_dtau(dactions_dtau)
+
+                if need_vel:
+                    vel_pred = vel_pred.detach()
+                    vel_gt = dataset_batch["joint_vel"].to(self.device)
+                    use = min(vel_pred.shape[1], vel_gt.shape[1], T)
+                    use = max(1, use - 1)
+                    loss_vel = F.mse_loss(vel_pred[:, :use, :], vel_gt[:, :use, :])
+                    loss = loss + float(self.vel_cfg.vel_loss_weight) * loss_vel
+                    self.log("val/vel_loss", loss_vel, sync_dist=True, batch_size=B)
+
+                if need_jerk:
+                    jerk_pred = jerk_pred.detach()
+                    use = min(jerk_pred.shape[1], T)
+                    use = max(1, use - 1)
+                    loss_jerk = torch.mean(jerk_pred[:, :use, :].pow(2))
+                    loss = loss + float(self.vel_cfg.jerk_loss_weight) * loss_jerk
+                    self.log("val/jerk_loss", loss_jerk, sync_dist=True, batch_size=B)
 
             total_loss += loss
             total_bs += B

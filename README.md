@@ -211,25 +211,6 @@ python -m agilex_cobot_magic.main \
 
 See [client/agilex_cobot_magic/README.md](client/agilex_cobot_magic/README.md) for all four launch commands and mode explanations.
 
-## 8. Smoke Tests
-
-These checks verify imports and argument parsing; they do not move the robot.
-
-```bash
-conda run -n niaf_train env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$PWD python train.py --help
-
-conda run -n niaf_server env PYTHONDONTWRITEBYTECODE=1 \
-  PYTHONPATH=$PWD:$PWD/third_party/openpi/src:$PWD/third_party/openpi/packages/openpi-client/src \
-  python server.py --help
-
-source client/agilex_cobot_magic/.venv/bin/activate
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=$PWD/client:$PWD/third_party/openpi/packages/openpi-client/src \
-  python -m agilex_cobot_magic.main --help
-```
-
-## Known Issue
-
-`config_niaf_vel` currently has a validation-time autograd graph reuse issue when both velocity and jerk validation losses are enabled. The training step itself runs, but the default validation path should be fixed before treating NIAFVel velocity+jerk training as fully verified.
 
 ## Citation
 
