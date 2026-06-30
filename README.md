@@ -1,6 +1,6 @@
-# Neural Implicit Action Fields
+# Neural Implicit Action Fields: From Discrete Waypoints to Continuous Functions for Vision-Language-Action Models
 
-This repository contains the real-robot training, server-side, and client-side deployment code for **Neural Implicit Action Fields: From Discrete Waypoints to Continuous Functions for Vision-Language-Action Models** (ICML 2026).
+This repository contains the real-robot training, server-side, and client-side deployment code for **Neural Implicit Action Fields (NIAF)**, (ICML 2026).
 
 The real-robot platform used here is **AgileX Cobot Magic**. Robot-side libraries, CAN setup, ROS topics, camera drivers, and the Piper SDK bindings are specific to this platform. The server and client are adapted from OpenPI's WebSocket policy server/client runtime, with additional support for NIAF-family checkpoints, AgileX Cobot Magic I/O, MIT impedance control, and asynchronous inference.
 
